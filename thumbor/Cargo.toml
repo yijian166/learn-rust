@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.82"
 axum = "0.7.5"
-base64 = "0.22.0"
+base64 = "0.13.0"
 bytes = "1.6.0"
 image = "0.25.1"
 lazy_static = "1.4.0"
@@ -16,6 +16,8 @@ lru = "0.12.3"
 percent-encoding = "2.3.1"
 photon-rs = "0.3.2"
 prost = "0.12.4"
+protobuf = "3.4.0"
+protoc = "2.28.0"
 reqwest = "0.12.3"
 serde = { version = "1.0.197", features = ["derive"] }
 tokio = { version = "1.37.0", features = ["full"] }
