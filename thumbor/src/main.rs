@@ -12,6 +12,9 @@ use tracing::{info, instrument};
 
 
 mod pb;
+mod engine;
+use engine::{Engine, Photon};
+use image::ImageFormat;
 
 use pb::*;
 
@@ -50,11 +53,18 @@ async fn generate(Path(Params { spec, url }): Path<Params>, Extension(cache): Ex
         .await
         .map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    // TODO: handle image
+    // handle image
     let mut headers = HeaderMap::new();
+    let mut engine: Photon = data
+        .try_into()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    engine.apple(&spec.specs);
+
+    let image = engine.generate(ImageFormat::Jpeg);
 
     headers.insert("content-type", HeaderValue::from_static("image/jpeg"));
-    Ok((headers,data.to_vec()))
+    Ok((headers,image))
 }
 
 
@@ -66,7 +76,7 @@ async fn retrieve_image(url: &str, cache: Cache) -> Result<Bytes> {
 
     let g = &mut cache.lock().await;
     let data = match g.get(&key) {
-        some(v) => {
+        Some(v) => {
             info!("Match cache {}", key);
             v.to_owned()
         }
@@ -81,6 +91,8 @@ async fn retrieve_image(url: &str, cache: Cache) -> Result<Bytes> {
 
     Ok(data)
 }
+
+
 
 fn print_test_url(url: &str) {
     use std::borrow::Borrow;
