@@ -1,14 +1,21 @@
-use axum::{extract::{Extension, Path}, http::{StatusCode, HeaderMap, HeaderValue}, routing::get, Router};
+use axum::{
+    extract::{Extension, Path},
+    handler::get,
+    http::{HeaderMap, HeaderValue, StatusCode},
+    Router,
+};
 use percent_encoding::{percent_decode_str, percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 use anyhow::Result;
 use bytes::Bytes;
 use lru::LruCache;
-use std::{collections::hash_map::DefaultHasher, convert::TryInto, hash::{{Hash, Hasher}}, sync::Arc,num::NonZeroUsize};
-use axum::routing::head;
+use std::{collections::hash_map::DefaultHasher, convert::TryInto, hash::{Hash, Hasher}, num::NonZeroUsize, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tracing::{info, instrument};
+use tower_http::{
+    add_extension::AddExtensionLayer, compression::CompressionLayer, trace::TraceLayer,
+};
 
 
 mod pb;
@@ -32,13 +39,27 @@ async fn main() {
     tracing_subscriber::fmt::init();
     let cache: Cache = Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(1024).unwrap())));
     let app = Router::new()
-        .route("/image/:spec/:url", get(generate));
-        //.layer(ServiceBuilder::new().layer(Extension(cache).into_inner())); //TODO: fix type
+        // `GET /` 会执行
+        .route("/image/:spec/:url", get(generate))
+        .layer(
+            ServiceBuilder::new()
+                .load_shed()
+                .concurrency_limit(1024)
+                .timeout(Duration::from_secs(10))
+                .layer(TraceLayer::new_for_http())
+                .layer(AddExtensionLayer::new(cache))
+                .layer(CompressionLayer::new())
+                .into_inner(),
+        );
 
-    let addr: String = "127.0.0.1:3000".parse().unwrap();
-    tracing::debug!("listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    // 运行 web 服务器
+    let addr = "127.0.0.1:3000".parse().unwrap();
+    print_test_url("https://images.pexels.com/photos/1562477/pexels-photo-1562477.jpeg?auto=compress&cs=tinysrgb&dpr=3&h=750&w=1260");
+    info!("Listening on {}", addr);
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
 }
 
 async fn generate(Path(Params { spec, url }): Path<Params>, Extension(cache): Extension<Cache>) -> Result<(HeaderMap,Vec<u8>), StatusCode> {
