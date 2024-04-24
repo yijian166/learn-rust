@@ -4,7 +4,7 @@ use serde::Deserialize;
 use anyhow::Result;
 use bytes::Bytes;
 use lru::LruCache;
-use std::{collections::hash_map::DefaultHasher, convert::TryInto, hash::{{Hash, Hasher}}, sync::Arc};
+use std::{collections::hash_map::DefaultHasher, convert::TryInto, hash::{{Hash, Hasher}}, sync::Arc,num::NonZeroUsize};
 use axum::routing::head;
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
@@ -30,10 +30,10 @@ type Cache = Arc<Mutex<LruCache<u64, Bytes>>>;
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
-    let cache: Cache = Arc::new(Mutex::new(LruCache::new(1024)));
+    let cache: Cache = Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(1024).unwrap())));
     let app = Router::new()
-        .route("/image/:spec/:url", get(generate))
-        .layer(ServiceBuilder::new().layer(Extension(cache).into_inner()));
+        .route("/image/:spec/:url", get(generate));
+        //.layer(ServiceBuilder::new().layer(Extension(cache).into_inner())); //TODO: fix type
 
     let addr: String = "127.0.0.1:3000".parse().unwrap();
     tracing::debug!("listening on {}", addr);
